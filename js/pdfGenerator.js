@@ -25,8 +25,15 @@ window.generateShadeCardPDF = async function generateShadeCardPDF(frames, shades
 
     col++;
     if (col >= 2) { col = 0; row++; }
-    if (margin + (row + 1) * rowHeight > pageHeight - margin && (col !== 0 || i < shades.length - 1)) {
-      if (col === 0) { doc.addPage(); row = 0; }
+
+    // Only a completed row (col === 0) can trigger a page break; the
+    // original `(col !== 0 || i < shades.length - 1)` disjunct was dead
+    // in the `col !== 0` case since the addPage() below never ran then.
+    const rowOverflowsPage = margin + (row + 1) * rowHeight > pageHeight - margin;
+    const isLastShade = i === shades.length - 1;
+    if (col === 0 && rowOverflowsPage && !isLastShade) {
+      doc.addPage();
+      row = 0;
     }
   }
 
