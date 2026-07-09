@@ -442,7 +442,11 @@ window.extractFrames = async function extractFrames(file, opts = {}) {
   const fps = 1 / intervalSec;
   const outPattern = 'frame_%04d.jpg';
   log(`extractFrames: running fps=${fps},scale=min(${maxWidth},iw):-2`);
-  await ffmpeg.exec(['-i', inputName, '-vf', `fps=${fps},scale='min(${maxWidth},iw)':-2`, '-q:v', '3', outPattern]);
+  // -huffman 0 works around a confirmed bug in @ffmpeg/core@0.12.10's wasm build:
+  // the mjpeg encoder's optimal-Huffman-table computation crashes with
+  // "RuntimeError: memory access out of bounds" (found and fixed in Task 1;
+  // does not reproduce in the native CLI ffmpeg build, wasm-specific).
+  await ffmpeg.exec(['-i', inputName, '-vf', `fps=${fps},scale='min(${maxWidth},iw)':-2`, '-q:v', '3', '-huffman', '0', outPattern]);
 
   const dirEntries = await ffmpeg.listDir('/');
   const frameNames = dirEntries
