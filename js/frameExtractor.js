@@ -31,39 +31,44 @@ window.extractFrames = async function extractFrames(file, opts = {}) {
 
   const ext = (file.name.match(/\.\w+$/) || ['.mp4'])[0];
   const inputName = `input${ext}`;
-  await ffmpeg.writeFile(inputName, await FFmpegUtil.fetchFile(file));
 
-  const fps = 1 / intervalSec;
-  const outPattern = 'frame_%04d.jpg';
-  log(`extractFrames: running fps=${fps},scale=min(${maxWidth},iw):-2`);
-  // -huffman 0 works around a confirmed bug in @ffmpeg/core@0.12.10's wasm build:
-  // the mjpeg encoder's optimal-Huffman-table computation crashes with
-  // "RuntimeError: memory access out of bounds" (reproduced even for a single
-  // frame, single.jpg, with no -vf at all). The native CLI ffmpeg build does not
-  // exhibit this — it's wasm-specific. Forcing default (non-optimal) Huffman
-  // tables avoids the crashing code path entirely; JPEG output is still valid,
-  // just marginally larger than with optimal tables.
-  await ffmpeg.exec(['-i', inputName, '-vf', `fps=${fps},scale='min(${maxWidth},iw)':-2`, '-q:v', '3', '-huffman', '0', outPattern]);
+  try {
+    await ffmpeg.writeFile(inputName, await FFmpegUtil.fetchFile(file));
 
-  const dirEntries = await ffmpeg.listDir('/');
-  const frameNames = dirEntries
-    .filter(f => !f.isDir && f.name.startsWith('frame_') && f.name.endsWith('.jpg'))
-    .map(f => f.name)
-    .sort();
+    const fps = 1 / intervalSec;
+    const outPattern = 'frame_%04d.jpg';
+    log(`extractFrames: running fps=${fps},scale=min(${maxWidth},iw):-2`);
+    // -huffman 0 works around a confirmed bug in @ffmpeg/core@0.12.10's wasm build:
+    // the mjpeg encoder's optimal-Huffman-table computation crashes with
+    // "RuntimeError: memory access out of bounds" (reproduced even for a single
+    // frame, single.jpg, with no -vf at all). The native CLI ffmpeg build does not
+    // exhibit this — it's wasm-specific. Forcing default (non-optimal) Huffman
+    // tables avoids the crashing code path entirely; JPEG output is still valid,
+    // just marginally larger than with optimal tables.
+    await ffmpeg.exec(['-i', inputName, '-vf', `fps=${fps},scale='min(${maxWidth},iw)':-2`, '-q:v', '3', '-huffman', '0', outPattern]);
 
-  log(`extractFrames: found ${frameNames.length} frames`);
+    const dirEntries = await ffmpeg.listDir('/');
+    const frameNames = dirEntries
+      .filter(f => !f.isDir && f.name.startsWith('frame_') && f.name.endsWith('.jpg'))
+      .map(f => f.name)
+      .sort();
 
-  const frames = [];
-  for (let i = 0; i < frameNames.length; i++) {
-    const name = frameNames[i];
-    const data = await ffmpeg.readFile(name);
-    const blob = new Blob([data.buffer], { type: 'image/jpeg' });
-    const url = URL.createObjectURL(blob);
-    frames.push({ name, blob, url });
-    await ffmpeg.deleteFile(name);
-    onProgress(i + 1, frameNames.length);
+    log(`extractFrames: found ${frameNames.length} frames`);
+
+    const frames = [];
+    for (let i = 0; i < frameNames.length; i++) {
+      const name = frameNames[i];
+      const data = await ffmpeg.readFile(name);
+      const blob = new Blob([data.buffer], { type: 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      frames.push({ name, blob, url });
+      await ffmpeg.deleteFile(name);
+      onProgress(i + 1, frameNames.length);
+    }
+    await ffmpeg.deleteFile(inputName);
+    log(`extractFrames: done, ${frames.length} frames returned`);
+    return frames;
+  } finally {
+    ffmpeg.terminate();
   }
-  await ffmpeg.deleteFile(inputName);
-  log(`extractFrames: done, ${frames.length} frames returned`);
-  return frames;
 };
