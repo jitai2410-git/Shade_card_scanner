@@ -3,11 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a1a2e">
 <title>Shade Card Scanner</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <h1>Shade Card Scanner</h1>
-<p>Under construction — see test-harness.html for dependency status.</p>
+
+<input type="file" id="videoInput" accept="video/*" style="display:none">
+<button id="pickBtn">Select Fabric Video</button>
+
+<div id="progressBar"><div id="progressFill"></div></div>
+<div id="status">Pick a video to begin.</div>
+
+<div id="swatchGrid"></div>
+
+<button id="downloadBtn" style="display:none">Download PDF</button>
+
+<div id="errorBanner">
+  <p id="errorText"></p>
+  <button id="copyLogBtn">Copy debug log</button>
+</div>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="js/logger.js"></script>
+<script src="js/frameExtractor.js"></script>
+<script src="js/ocr.js"></script>
+<script src="js/pdfGenerator.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

@@ -75,3 +75,24 @@ Neither fix required changing the pinned `@ffmpeg/ffmpeg@0.12.15` or `@ffmpeg/co
 1. **`npm install --save-dev pdf-parse` (no version pin) installed `pdf-parse@2.4.5`, which has a completely different API** (a class-based `PDFParse` export) than the classic v1.x function API (`pdfParse(buffer) -> Promise<data>`) that the brief's `tools/verify-phase3-pdf.js` script (and the wider `pdf-parse` ecosystem's common usage) assumes. First run failed with `TypeError: pdfParse is not a function`. Diagnosed by inspecting `require('pdf-parse')`'s exported keys, which showed `PDFParse`, `Line`, `Table`, etc. — a v2 rewrite, not the v1 default export. **Fix:** pinned to `pdf-parse@1.1.1` (`npm uninstall pdf-parse && npm install --save-dev pdf-parse@1.1.1`), which restored the expected `pdfParse(buffer)` function signature; `tools/verify-phase3-pdf.js` then ran unmodified per the brief. `package.json`'s devDependency is pinned to `1.1.1` — anyone re-running `npm install` will get the same working API.
 
 No issues were found in `js/pdfGenerator.js` or `test-phase3.html` themselves — the crop-then-embed pipeline, jsPDF's default Helvetica font (text extraction worked with no changes needed), and the 2-column grid layout all worked correctly on the first in-browser run once the verification tooling was fixed. Zero console errors or warnings across 59 browser console messages during the full pipeline run.
+
+## Phase 4 — Full pipeline UI
+
+**Tested:** index.html end-to-end via Playwright against fixtures/test-video.mp4 — file select, progress text, swatch grid rendering, PDF download trigger, verified with tools/verify-phase3-pdf.js against the resulting PDF.
+
+**Result:** PASS
+
+**Run details:** Served via `python -m http.server 8080`. Navigated to `http://localhost:8080/index.html`, clicked `#pickBtn`, uploaded `fixtures/test-video.mp4` (lowercase-drive-letter path required for Playwright's file-upload allowed-roots check on Windows) via `browser_file_upload`, waited for status text containing `Done —` (resolved well under the 45s timeout — full pipeline took ~4.5s wall time after ffmpeg core load). Snapshot confirmed: 3 swatch tiles in `#swatchGrid` labeled 701/702/703, `#downloadBtn` visible with text "Download PDF", `#errorBanner` not present/visible in the accessibility tree (still `display: none`). Status text read exactly `Done — 3 shades found: 701, 702, 703`.
+
+Extracted `pdfResult.base64` (a top-level `const` in the non-module `app.js` script, reachable directly from `browser_evaluate`'s page-context expression — no need to expose it on `window`) via `browser_evaluate` with the `filename` option (same large-string-avoids-context trick as Phase 3), decoded to a `.pdf`, and ran `node tools/verify-phase3-pdf.js`:
+
+```
+Pages: 1
+Text: "\n\n701702\n703"
+Image count: 3
+PASS: PDF is valid, contains labels [ '701', '702', '703' ] and 3 images
+```
+
+Console log during the run (via `SCSLogger`) showed the full traced pipeline: ffmpeg core load → frame extraction (4 frames found, matching Phase 1) → OCR per-frame (701/702/duplicate-702-skipped/703, matching Phase 2's dedup behavior exactly) → PDF assembly (3 shades added, `ShadeCard_<timestamp>.pdf`, 33685 bytes). Zero console errors besides one benign `404` for `icons/icon-192.png` (icon assets are not yet created — that's Task 5's `manifest.json`/icons scope, not this task's; the `<link rel="icon">` reference in `index.html` is per the brief's exact markup and does not affect functionality).
+
+**Failures found:** none. The UI wiring, error-banner element (`#errorBanner`/`#errorText`/`#copyLogBtn`), and coarse progress reporting (frame-extraction percentage via `onProgress`, OCR/PDF stage text) all worked as specified on the first real end-to-end run — no code changes were needed beyond the brief's exact `app.js`/`index.html`/`css/style.css` listings. No finer-grained OCR progress threading was needed (brief Step 5(a) was not triggered). `hideError()` is called at the top of the `change` handler, so the error banner correctly resets between runs (brief Step 5(b) — verified by code inspection, not re-triggered in this run since the happy path never errors). `videoInput.value = ''` in the `finally` block is present and correct per the brief's Step 5(c) guidance (intentional, not a bug) — noted here rather than "fixed."
