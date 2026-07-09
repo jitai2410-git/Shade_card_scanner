@@ -61,3 +61,17 @@ Neither fix required changing the pinned `@ffmpeg/ffmpeg@0.12.15` or `@ffmpeg/co
 **Result:** PASS
 
 **Failures found:** none. The in-browser confidences (84/87/–/93, frame-2 skipped as dup) were close to but not identical to the Node proxy's confidences (83/87/87/94) — a small, expected variance from Tesseract's internal nondeterminism / minor JPEG re-encoding differences between ffmpeg.wasm and the native CLI ffmpeg build, not a functional discrepancy. Both runs cleared the 70-confidence threshold on all 4 frames and produced the identical final deduplicated shade sequence `[701, 702, 703]`, so no fix was required.
+
+## Phase 3 — Swatch crop + PDF generation
+
+**Tested:** `test-phase3.html` run via Playwright against `fixtures/test-video.mp4`, full pipeline (extract → OCR → PDF) through `js/pdfGenerator.js`. Resulting PDF base64 extracted from the page's `#base64Out` textarea via `browser_evaluate` (saved directly to a file with the tool's `filename` option to avoid any manual-transcription risk on the ~45KB string), decoded to a real `.pdf` file, and parsed with `pdf-parse` via `tools/verify-phase3-pdf.js`.
+
+**Result:** PASS
+
+**Page count:** 1, **Labels found:** [701, 702, 703], **Image count:** 3
+
+**Failures found:**
+
+1. **`npm install --save-dev pdf-parse` (no version pin) installed `pdf-parse@2.4.5`, which has a completely different API** (a class-based `PDFParse` export) than the classic v1.x function API (`pdfParse(buffer) -> Promise<data>`) that the brief's `tools/verify-phase3-pdf.js` script (and the wider `pdf-parse` ecosystem's common usage) assumes. First run failed with `TypeError: pdfParse is not a function`. Diagnosed by inspecting `require('pdf-parse')`'s exported keys, which showed `PDFParse`, `Line`, `Table`, etc. — a v2 rewrite, not the v1 default export. **Fix:** pinned to `pdf-parse@1.1.1` (`npm uninstall pdf-parse && npm install --save-dev pdf-parse@1.1.1`), which restored the expected `pdfParse(buffer)` function signature; `tools/verify-phase3-pdf.js` then ran unmodified per the brief. `package.json`'s devDependency is pinned to `1.1.1` — anyone re-running `npm install` will get the same working API.
+
+No issues were found in `js/pdfGenerator.js` or `test-phase3.html` themselves — the crop-then-embed pipeline, jsPDF's default Helvetica font (text extraction worked with no changes needed), and the 2-column grid layout all worked correctly on the first in-browser run once the verification tooling was fixed. Zero console errors or warnings across 59 browser console messages during the full pipeline run.

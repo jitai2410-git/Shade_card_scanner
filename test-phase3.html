@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 3 Test — PDF Generation</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 1rem; }
+  #status { font-weight: bold; }
+  .pass { color: #0a7d2c; } .fail { color: #c0272d; }
+</style>
+</head>
+<body>
+<h1>Phase 3 Test — PDF Generation</h1>
+<input type="file" id="fileInput" accept="video/*">
+<p id="status">Pick fixtures/test-video.mp4</p>
+<a id="downloadLink" style="display:none">Download PDF</a>
+<textarea id="base64Out" style="display:none"></textarea>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="js/logger.js"></script>
+<script src="js/frameExtractor.js"></script>
+<script src="js/ocr.js"></script>
+<script src="js/pdfGenerator.js"></script>
+<script>
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('status');
+  status.textContent = 'Extracting frames...';
+  try {
+    const frames = await window.extractFrames(file);
+    status.textContent = 'Running OCR...';
+    const shades = await window.detectShades(frames);
+    status.textContent = 'Building PDF...';
+    const { blob, filename, base64 } = await window.generateShadeCardPDF(frames, shades);
+
+    const link = document.getElementById('downloadLink');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.textContent = `Download ${filename}`;
+    link.style.display = 'block';
+
+    const out = document.getElementById('base64Out');
+    out.value = base64;
+    out.style.display = 'block';
+
+    status.textContent = `PASS — PDF built with ${shades.length} shades: [${shades.map(s => s.number).join(', ')}]`;
+    status.className = 'pass';
+    window.__testPdfBase64 = base64;
+    window.__testShadeNumbers = shades.map(s => s.number);
+  } catch (err) {
+    status.textContent = `FAIL — ${err.message}`;
+    status.className = 'fail';
+    console.error(err);
+  }
+});
+</script>
+</body>
+</html>
