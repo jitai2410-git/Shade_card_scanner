@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dependency Test Harness</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 1rem; }
+  .pass { color: #0a7d2c; }
+  .fail { color: #c0272d; }
+  li { margin: 0.5rem 0; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+<h1>Dependency Test Harness</h1>
+<ul id="results"></ul>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script>
+const results = document.getElementById('results');
+
+function report(name, ok, detail) {
+  const li = document.createElement('li');
+  li.className = ok ? 'pass' : 'fail';
+  li.textContent = `${ok ? 'PASS' : 'FAIL'} — ${name}${detail ? ': ' + detail : ''}`;
+  results.appendChild(li);
+  console.log(`[test-harness] ${ok ? 'PASS' : 'FAIL'} ${name}`, detail || '');
+}
+
+function check(name, fn) {
+  try {
+    const ok = !!fn();
+    report(name, ok, ok ? '' : 'value was falsy');
+  } catch (e) {
+    report(name, false, e.message);
+  }
+}
+
+check('FFmpegWASM.FFmpeg', () => typeof FFmpegWASM !== 'undefined' && typeof FFmpegWASM.FFmpeg === 'function');
+check('FFmpegUtil.fetchFile', () => typeof FFmpegUtil !== 'undefined' && typeof FFmpegUtil.fetchFile === 'function');
+check('FFmpegUtil.toBlobURL', () => typeof FFmpegUtil !== 'undefined' && typeof FFmpegUtil.toBlobURL === 'function');
+check('Tesseract.recognize', () => typeof Tesseract !== 'undefined' && typeof Tesseract.recognize === 'function');
+check('jspdf.jsPDF', () => typeof jspdf !== 'undefined' && typeof jspdf.jsPDF === 'function');
+
+// Also attempt to actually load the ffmpeg core, since that's the most likely runtime failure
+(async () => {
+  // Workaround for a real bug in @ffmpeg/ffmpeg@0.12.15's UMD build: when a
+  // custom `classWorkerURL` is supplied, the library hardcodes `{ type: "module" }`
+  // for the Worker it constructs. But the UMD worker chunk (814.ffmpeg.js) is a
+  // classic script that uses `importScripts()`, which module workers cannot call.
+  // That mismatch makes ffmpeg.load() fail. We can't pass a worker instance
+  // directly, so we temporarily wrap window.Worker to force `type: "classic"`
+  // for the duration of the load() call, then restore it.
+  const OrigWorker = window.Worker;
+  window.Worker = function (url, opts) {
+    return new OrigWorker(url, Object.assign({}, opts, { type: 'classic' }));
+  };
+  window.Worker.prototype = OrigWorker.prototype;
+  try {
+    const ffmpeg = new FFmpegWASM.FFmpeg();
+    const coreURL = await FFmpegUtil.toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js', 'text/javascript');
+    const wasmURL = await FFmpegUtil.toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm', 'application/wasm');
+    // classWorkerURL must be a blob: URL too — the Worker() constructor
+    // refuses to load a cross-origin script URL directly (SecurityError),
+    // even though unpkg sends permissive CORS headers.
+    const classWorkerURL = await FFmpegUtil.toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/814.ffmpeg.js', 'text/javascript');
+    await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
+    report('ffmpeg.load() single-thread core', true);
+  } catch (e) {
+    report('ffmpeg.load() single-thread core', false, e.message);
+  } finally {
+    window.Worker = OrigWorker;
+  }
+})();
+</script>
+</body>
+</html>
