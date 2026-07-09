@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 2 Test — OCR</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 1rem; }
+  #status { font-weight: bold; }
+  .pass { color: #0a7d2c; } .fail { color: #c0272d; }
+  li { font-family: monospace; }
+</style>
+</head>
+<body>
+<h1>Phase 2 Test — OCR</h1>
+<input type="file" id="fileInput" accept="video/*">
+<p id="status">Pick fixtures/test-video.mp4</p>
+<ul id="results"></ul>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="js/logger.js"></script>
+<script src="js/frameExtractor.js"></script>
+<script src="js/ocr.js"></script>
+<script>
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('status');
+  const list = document.getElementById('results');
+  list.innerHTML = '';
+  status.textContent = 'Extracting frames...';
+  try {
+    const frames = await window.extractFrames(file);
+    status.textContent = 'Running OCR...';
+    const shades = await window.detectShades(frames);
+    const numbers = shades.map(s => s.number);
+    const expected = JSON.stringify(['701', '702', '703']);
+    const ok = JSON.stringify(numbers) === expected;
+    status.textContent = `${ok ? 'PASS' : 'FAIL'} — detected [${numbers.join(', ')}]`;
+    status.className = ok ? 'pass' : 'fail';
+    for (const s of shades) {
+      const li = document.createElement('li');
+      li.textContent = `${s.number} (frame ${s.frameIndex}, confidence ${s.confidence.toFixed(1)})`;
+      list.appendChild(li);
+    }
+    window.__testShades = shades;
+  } catch (err) {
+    status.textContent = `FAIL — ${err.message}`;
+    status.className = 'fail';
+    console.error(err);
+  }
+});
+</script>
+</body>
+</html>
