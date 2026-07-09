@@ -1,2 +1,4 @@
 node_modules/
 *.log
+.playwright-mcp/
+fixtures/.tmp-video-build/

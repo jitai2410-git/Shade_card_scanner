@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1 Test — Frame Extraction</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 1rem; }
+  #thumbs img { width: 120px; margin: 4px; border: 1px solid #ccc; }
+  #status { font-weight: bold; }
+  .pass { color: #0a7d2c; } .fail { color: #c0272d; }
+</style>
+</head>
+<body>
+<h1>Phase 1 Test — Frame Extraction</h1>
+<input type="file" id="fileInput" accept="video/*">
+<p id="status">Pick a video file (or use fixtures/test-video.mp4)</p>
+<div id="thumbs"></div>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+<script src="js/logger.js"></script>
+<script src="js/frameExtractor.js"></script>
+<script>
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('status');
+  const thumbs = document.getElementById('thumbs');
+  thumbs.innerHTML = '';
+  status.textContent = 'Extracting...';
+  status.className = '';
+  try {
+    const frames = await window.extractFrames(file, {
+      onProgress: (cur, total) => { status.textContent = `Extracting frame ${cur}/${total}`; }
+    });
+    status.textContent = `PASS — ${frames.length} frames extracted`;
+    status.className = 'pass';
+    for (const f of frames) {
+      const img = document.createElement('img');
+      img.src = f.url;
+      thumbs.appendChild(img);
+    }
+    window.__testFrameCount = frames.length; // for automated inspection
+  } catch (err) {
+    status.textContent = `FAIL — ${err.message}`;
+    status.className = 'fail';
+    console.error(err);
+  }
+});
+</script>
+</body>
+</html>
