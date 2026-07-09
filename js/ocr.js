@@ -14,6 +14,7 @@ window.detectShades = async function detectShades(frames) {
       data = res.data;
     } catch (err) {
       log(`OCR: frame ${i + 1} failed: ${err.message}`);
+      lastNumber = null;
       continue;
     }
 
