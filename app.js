@@ -64,14 +64,26 @@ function renderSwatches(frames, shades) {
 }
 
 function checkVideoDuration(file) {
+  const TIMEOUT_MS = 10000;
   return new Promise((resolve, reject) => {
     const videoEl = document.createElement('video');
     videoEl.preload = 'metadata';
+
+    const timer = setTimeout(() => {
+      URL.revokeObjectURL(videoEl.src);
+      reject(new Error(`Could not read this video's info within ${TIMEOUT_MS / 1000} seconds. The file may be corrupt or in an unsupported format.`));
+    }, TIMEOUT_MS);
+
     videoEl.onloadedmetadata = () => {
+      clearTimeout(timer);
       URL.revokeObjectURL(videoEl.src);
       resolve(videoEl.duration);
     };
-    videoEl.onerror = () => reject(new Error('Could not read video metadata — is this a valid video file?'));
+    videoEl.onerror = () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(videoEl.src);
+      reject(new Error('Could not read video metadata — is this a valid video file?'));
+    };
     videoEl.src = URL.createObjectURL(file);
   });
 }
@@ -113,8 +125,6 @@ videoInput.addEventListener('change', async (e) => {
     currentFrameUrls = frames.map(f => f.url);
 
     status.textContent = `OCR: frame 1/${frames.length}...`;
-    const originalLog = log;
-    let ocrDone = 0;
     const shades = await window.detectShades(frames);
     // detectShades logs its own progress via SCSLogger; mirror coarse progress here
     setProgress(80);
