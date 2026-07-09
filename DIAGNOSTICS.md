@@ -96,3 +96,40 @@ PASS: PDF is valid, contains labels [ '701', '702', '703' ] and 3 images
 Console log during the run (via `SCSLogger`) showed the full traced pipeline: ffmpeg core load → frame extraction (4 frames found, matching Phase 1) → OCR per-frame (701/702/duplicate-702-skipped/703, matching Phase 2's dedup behavior exactly) → PDF assembly (3 shades added, `ShadeCard_<timestamp>.pdf`, 33685 bytes). Zero console errors besides one benign `404` for `icons/icon-192.png` (icon assets are not yet created — that's Task 5's `manifest.json`/icons scope, not this task's; the `<link rel="icon">` reference in `index.html` is per the brief's exact markup and does not affect functionality).
 
 **Failures found:** none. The UI wiring, error-banner element (`#errorBanner`/`#errorText`/`#copyLogBtn`), and coarse progress reporting (frame-extraction percentage via `onProgress`, OCR/PDF stage text) all worked as specified on the first real end-to-end run — no code changes were needed beyond the brief's exact `app.js`/`index.html`/`css/style.css` listings. No finer-grained OCR progress threading was needed (brief Step 5(a) was not triggered). `hideError()` is called at the top of the `change` handler, so the error banner correctly resets between runs (brief Step 5(b) — verified by code inspection, not re-triggered in this run since the happy path never errors). `videoInput.value = ''` in the `finally` block is present and correct per the brief's Step 5(c) guidance (intentional, not a bug) — noted here rather than "fixed."
+
+## Phase 5 — PWA layer
+
+**Tested:** manifest.json JSON-validity (Node), icon file generation (Node, size sanity check), and in-browser via Playwright: SW registration, cache population (18 assets), and page render after the dev server was killed (offline proxy — see note below). Also ran a full pipeline regression (fixtures/test-video.mp4 → 3-shade PDF) with the SW active to confirm fetch interception doesn't break normal online operation.
+
+**Asset list note:** the brief's example `sw.js` ASSETS list (18 entries) did not include `814.ffmpeg.js`, the UMD worker chunk that `js/frameExtractor.js` fetches at runtime via `FFmpegUtil.toBlobURL(...)` for the `classWorkerURL` workaround documented in Phase 0. Omitting it would mean the app can load `ffmpeg.js`/`ffmpeg-core.js`/`ffmpeg-core.wasm` offline but fail at `ffmpeg.load()` because the worker chunk fetch would hit the network and fail. Added `https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/814.ffmpeg.js` to the ASSETS list; the final count is still 18 (11 local assets + 7 CDN assets, one more CDN URL than the brief's list but the brief's local-asset count example matches).
+
+**Node-level checks:**
+```
+node tools/generate-icons.js
+Wrote icons/icon-192.png (192x192)
+Wrote icons/icon-512.png (512x512)
+
+node -e "... size sanity check ..."
+icons/icon-192.png 5523 bytes OK
+icons/icon-512.png 15518 bytes OK
+
+node -e "JSON.parse(...); console.log('valid JSON')"
+valid JSON
+```
+
+**Environment issue found and fixed (not a code bug):** the first Playwright verification pass returned a stale `{}` body for `manifest.json` and stale cache contents. Root-caused via `netstat`/`Get-CimInstance Win32_Process` to **five separate stray `python -m http.server 8080` processes** left running on port 8080 from earlier task sessions in this same environment, all bound simultaneously (Windows permitted the duplicate binds); the browser's requests were being served nondeterministically by whichever process's socket handled the connection, at least one of which was serving an older Task-0-era copy of the files. Fixed by killing all five processes (`Stop-Process -Force` on each PID) and starting exactly one fresh `python -m http.server 8080` from the project root, then clearing the browser's HTTP cache, Service Worker registrations, and Cache Storage via CDP/`caches.delete()` before re-running the checks. This was purely a leftover-process artifact of the test environment, not an issue in `manifest.json`, `sw.js`, or `index.html`.
+
+**In-browser results (Playwright, single clean server, cleared SW/cache state first):**
+- `fetch('./manifest.json').then(r => r.json())` → `{"name":"Shade Card Scanner","iconsCount":2}` — PASS.
+- `navigator.serviceWorker.getRegistration()` (after ~3s wait) → `true` — PASS.
+- `caches.open('shade-card-scanner-v1').then(c => c.keys()).then(k => k.length)` → `18` — PASS, matches `ASSETS.length`.
+- Per-asset cache inspection: all 18 entries present, `status=200`, local assets `type=basic`, all 7 CDN assets `type=cors` (unpkg sends proper CORS headers, so responses are real, non-opaque, fully inspectable — no fallback to `fetch(url, {mode:'no-cors'})` + `cache.put()` was needed).
+- Offline-render check: stopped the (single, confirmed-only) `python -m http.server 8080` process, confirmed via `netstat` the port had no listener, then navigated to `http://localhost:8080/index.html` again. Page loaded successfully; `document.title` → `"Shade Card Scanner"`, full DOM (heading, button, status line) rendered — proving the SW's cache-first `fetch` handler served every asset with zero live network access. Server was restarted afterward for the regression check.
+
+**Regression check (SW active, server back up):** navigated to `index.html`, clicked "Select Fabric Video", uploaded `fixtures/test-video.mp4` via `browser_file_upload`, waited for `Done —` text. Result: status line read exactly `Done — 3 shades found: 701, 702, 703`, swatch grid showed 3 tiles (701/702/703), `Download PDF` button visible. Console messages: 60 total, 0 errors, 0 warnings — confirming the SW's cache-first fetch interception does not interfere with normal online operation (cache misses/first-loads still fall through to `fetch()` correctly).
+
+**Note on Lighthouse:** No Lighthouse CLI is available in this environment; the offline-reload-after-server-kill check is used as the closest equivalent to Lighthouse's offline audit. Recommend the user also runs a real Lighthouse PWA audit from Chrome DevTools once deployed to Cloudflare Pages, documented in TESTING.md.
+
+**Result:** PASS
+
+**Failures found:** none in the PWA code itself. One environment artifact (stray duplicate `http.server` processes from prior sessions) caused an initial false-negative on the manifest fetch check; root-caused and resolved as described above, not a defect in `manifest.json`/`sw.js`/`index.html`.

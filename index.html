@@ -36,5 +36,15 @@
 <script src="js/ocr.js"></script>
 <script src="js/pdfGenerator.js"></script>
 <script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(
+      () => window.SCSLogger.log('Service worker registered'),
+      (err) => window.SCSLogger.log(`Service worker registration failed: ${err.message}`)
+    );
+  });
+}
+</script>
 </body>
 </html>
