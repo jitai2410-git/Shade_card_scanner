@@ -4,6 +4,7 @@ fixtures/
 tools/
 .superpowers/
 .wrangler/
+.playwright-mcp/
 wrangler.jsonc
 .assetsignore
 .dev.vars
