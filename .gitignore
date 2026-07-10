@@ -7,3 +7,4 @@ fixtures/.tmp-video-build/
 .dev.vars.*
 *.env
 .env.*
+.claude/
