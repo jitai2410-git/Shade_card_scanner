@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shade-card-scanner-v1';
+const CACHE_NAME = 'shade-card-scanner-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -16,7 +16,6 @@ const ASSETS = [
   'https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js',
   'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js',
   'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm',
-  'https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js',
   'https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js',
 ];
 

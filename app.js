@@ -126,7 +126,7 @@ videoInput.addEventListener('change', async (e) => {
     });
     currentFrameUrls = frames.map(f => f.url);
 
-    status.textContent = `OCR: frame 1/${frames.length}...`;
+    status.textContent = `Analyzing ${frames.length} frames...`;
     const shades = await window.detectShades(frames);
     // detectShades logs its own progress via SCSLogger; mirror coarse progress here
     setProgress(80);

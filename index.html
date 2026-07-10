@@ -20,7 +20,7 @@
     if (e.target && e.target.tagName === 'SCRIPT') {
       document.body.innerHTML = '<div style="padding:2rem;font-family:sans-serif;color:#c0272d">' +
         '<h2>Could not load required libraries</h2>' +
-        '<p>This app needs an internet connection the first time you use it (to download OCR/PDF tools). ' +
+        '<p>This app needs an internet connection every time you scan a video (frame extraction and PDF tools download once and work offline, but shade detection happens online via an AI service). ' +
         'Please check your connection and reload. If this keeps happening, the issue may be with unpkg.com being unreachable from your network.</p>' +
         '<p style="font-family:monospace;font-size:0.8rem">Failed: ' + (e.target.src || 'unknown script') + '</p></div>';
     }
@@ -47,7 +47,6 @@
 
 <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
 <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
-<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="js/logger.js"></script>
 <script src="js/frameExtractor.js"></script>

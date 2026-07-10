@@ -17,7 +17,6 @@
 
 <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
 <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
-<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script>
 const results = document.getElementById('results');
@@ -42,7 +41,6 @@ function check(name, fn) {
 check('FFmpegWASM.FFmpeg', () => typeof FFmpegWASM !== 'undefined' && typeof FFmpegWASM.FFmpeg === 'function');
 check('FFmpegUtil.fetchFile', () => typeof FFmpegUtil !== 'undefined' && typeof FFmpegUtil.fetchFile === 'function');
 check('FFmpegUtil.toBlobURL', () => typeof FFmpegUtil !== 'undefined' && typeof FFmpegUtil.toBlobURL === 'function');
-check('Tesseract.recognize', () => typeof Tesseract !== 'undefined' && typeof Tesseract.recognize === 'function');
 check('jspdf.jsPDF', () => typeof jspdf !== 'undefined' && typeof jspdf.jsPDF === 'function');
 
 // Also attempt to actually load the ffmpeg core, since that's the most likely runtime failure
@@ -73,6 +71,20 @@ check('jspdf.jsPDF', () => typeof jspdf !== 'undefined' && typeof jspdf.jsPDF ==
     report('ffmpeg.load() single-thread core', false, e.message);
   } finally {
     window.Worker = OrigWorker;
+  }
+})();
+
+(async () => {
+  try {
+    const res = await fetch('/api/detect-shades', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: [] }),
+    });
+    const ok = res.status === 400; // empty images array should be rejected with 400
+    report('/api/detect-shades route reachable', ok, ok ? '' : `unexpected status ${res.status}`);
+  } catch (e) {
+    report('/api/detect-shades route reachable', false, e.message);
   }
 })();
 </script>
