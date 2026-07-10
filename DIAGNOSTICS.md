@@ -181,3 +181,56 @@ of confidence-based filtering.
 | 5 | PWA layer: SW registration confirmed (`getRegistration()` truthy), cache populated with 18 assets, page still rendered correctly after killing the dev server entirely (offline reload) and restarted server afterward | PASS |
 
 All five re-runs matched their original Task 1-5 DIAGNOSTICS.md results exactly (same shade numbers, same PDF byte size class, same asset count) — no regressions from the Step 1 fixes (the `index.html` script-error handler and the `js/frameExtractor.js` comment addition).
+
+# Gemini Migration
+
+Real-world testing on 2026-07-10 found the original Tesseract.js-based OCR (Phases 0-6 above) cannot read actual fabric catalogue labels — see design doc at docs/superpowers/specs/2026-07-10-gemini-shade-detection-design.md for full root-cause evidence. This section logs the migration to Gemini API-based detection.
+
+## Phase 0 — Cloudflare Worker backend
+
+**Tested:** `wrangler dev` locally serving both static assets and `/api/detect-shades`; real end-to-end request using frames extracted from `fixtures/test-video.mp4`, through the actual Worker code (not a direct Gemini curl); error-case handling (missing images, too-many-images).
+
+**Result:** PASS
+
+**Failures found:**
+
+1. **Infinite reload loop with default `wrangler dev --local` persistence (root cause diagnosed and fixed).** With `assets.directory` set to `"./"` (the whole repo) in `wrangler.jsonc`, running `npx --prefix tools wrangler dev --port 8788 --local` from the repo root entered a continuous `⎔ Reloading local server...` loop (confirmed via log timestamps: dozens of reload cycles per minute) and never stabilized enough to serve a request — a plain `GET /` with a 10s timeout returned nothing, and a POST to `/api/detect-shades` hung indefinitely (netstat showed dozens of local TIME_WAIT connections to port 8788, one per reload cycle). Root cause: Miniflare's local persistence state (`.wrangler/state/v3/cache/miniflare-CacheObject/metadata.sqlite-shm`, etc.) is written inside the repo by default, and since the asset watcher watches the entire `assets.directory` tree (`.assetsignore` governs what gets *uploaded* on deploy, not what the dev-mode file watcher watches for live-reload), each write to `.wrangler/` retriggered the watcher, which reloaded the server, which rewrote the state file, ad infinitum. Confirmed by observing `.wrangler/state/v3/cache/miniflare-CacheObject/metadata.sqlite-shm` had a fresh mtime on every reload cycle.
+   **Fix:** run with `--persist-to` pointed at a directory outside the repo (e.g. a scratch/temp directory), e.g.:
+   ```
+   npx --prefix tools wrangler dev --port 8788 --local --persist-to "<some-dir-outside-the-repo>"
+   ```
+   With this flag, reload count stabilized at 1 (the initial build) and stayed there under repeated checks over 30+ seconds of idle time, and both `GET /` and `POST /api/detect-shades` responded normally. This is a local-dev-only workaround; it does not affect `wrangler deploy` (Cloudflare's hosted Workers runtime does not use local Miniflare persistence). No code or config file needed to change — this is purely a local invocation flag. Recommendation: use `--persist-to <path outside the repo>` for all future local `wrangler dev` sessions on this project, since `assets.directory` is the whole repo.
+
+**Real end-to-end test (Step 5):** frames extracted from `fixtures/test-video.mp4` via a real `@ffmpeg-installer/ffmpeg` binary (`fps=1/1.5,scale='min(960,iw)':-2`, 4 frames), POSTed as base64 JPEGs to `POST http://localhost:8788/api/detect-shades` through the actual Worker code path (not a direct Gemini curl). Real Gemini response received:
+```
+status 200
+{
+  "shades": [
+    { "shadeNumber": "701", "imageIndex": 0 },
+    { "shadeNumber": "702", "imageIndex": 1 },
+    { "shadeNumber": "703", "imageIndex": 3 }
+  ]
+}
+```
+All three expected shade numbers (701/702/703) from the synthetic test video were correctly identified with valid in-range `imageIndex` values.
+
+**Error-case tests (Step 6):**
+```
+--- Missing images array ---
+HTTP/1.1 400 Bad Request
+{"error":"Missing \"images\" array"}
+
+--- Too many images (61) ---
+HTTP/1.1 400 Bad Request
+{"error":"Too many images: max 60 per request"}
+```
+Both returned correct 400 status and clear JSON error bodies, no crash or unhandled exception (confirmed via `curl -i`).
+
+**Worker log during testing** (clean run, `--persist-to` fix applied):
+```
+[wrangler:info] Ready on http://127.0.0.1:8788
+[wrangler:info] GET / 200 OK (14ms)
+[wrangler:info] POST /api/detect-shades 200 OK (18887ms)
+[wrangler:info] POST /api/detect-shades 400 Bad Request (7ms)
+[wrangler:info] POST /api/detect-shades 400 Bad Request (6ms)
+```

@@ -15,6 +15,7 @@
   "type": "commonjs",
   "devDependencies": {
     "canvas": "^3.2.3",
-    "pdf-parse": "1.1.1"
+    "pdf-parse": "1.1.1",
+    "wrangler": "^4.110.0"
   }
 }

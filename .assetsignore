@@ -1,0 +1,15 @@
+worker/
+docs/
+fixtures/
+tools/
+.superpowers/
+.wrangler/
+wrangler.jsonc
+.assetsignore
+.dev.vars
+.dev.vars.*
+.git/
+.gitignore
+node_modules/
+DIAGNOSTICS.md
+TESTING.md

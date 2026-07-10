@@ -1,0 +1,9 @@
+{
+  "name": "shadecardscanner",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-07-10",
+  "assets": {
+    "directory": "./",
+    "binding": "ASSETS"
+  }
+}
