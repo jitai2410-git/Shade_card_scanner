@@ -234,3 +234,22 @@ Both returned correct 400 status and clear JSON error bodies, no crash or unhand
 [wrangler:info] POST /api/detect-shades 400 Bad Request (7ms)
 [wrangler:info] POST /api/detect-shades 400 Bad Request (6ms)
 ```
+
+## Phase 1 — Frame extraction interval change (1.5s → 0.5s)
+
+**Tested:** CLI proxy (ffmpeg `fps=1/0.5` filter on fixtures/test-video.mp4, using @ffmpeg-installer/ffmpeg win32-x64 N-92722 binary) → 12 frames. In-browser (test-phase1.html via Playwright, served via `wrangler dev --port 8788 --local --persist-to "C:/Users/Envy/AppData/Local/Temp/wrangler-local-state"`) → PASS — 12 frames extracted.
+
+**Implementation:** Changed default `intervalSec` in `js/frameExtractor.js` line 7 from `1.5` to `0.5` — single-line change to the destructured constant. No other changes to the file (Worker monkeypatch, `-huffman 0`, cleanup logic remain untouched).
+
+**CLI proxy run:**
+```bash
+"C:\Users\Envy\AppData\Local\Temp\claude\c--Users-Envy-Catalogue-Price-Web\3d033f23-ffa3-4b4c-93d3-f3de76562179\scratchpad\node_modules\@ffmpeg-installer\win32-x64\ffmpeg.exe" -y -i "fixtures/test-video.mp4" -vf "fps=1/0.5,scale='min(960,iw)':-2" -q:v 3 -huffman 0 /tmp/interval_check/frame_%04d.jpg
+ls /tmp/interval_check | wc -l
+```
+Result: **12 frames** (6.0s video ÷ 0.5s interval = 12 frames exactly, no rounding ambiguity).
+
+**In-browser result:** test-phase1.html via Playwright, file upload `fixtures/test-video.mp4` (lowercase drive-letter path `c:\Users\Envy\Catalogue Price Web\fixtures\test-video.mp4`), waited for result text. Page rendered: green text "PASS — 12 frames extracted", 12 thumbnail `<img>` elements displayed (4 blue shades labeled 701, 4 green labeled 702, 4 red labeled 703). Console: 1 external error (Google Analytics/GitHub API errors from embedded services, not app-level), 0 app-level errors or warnings.
+
+**Result:** PASS
+
+**Failures found:** none. Both CLI and in-browser frame counts match the expected 12 (6.0s ÷ 0.5s = 12), confirming the interval math change propagated correctly through both the ffmpeg-wasm pipeline (via `fps` filter calculation) and the native CLI ffmpeg baseline.

@@ -4,7 +4,7 @@
 // iOS users should keep videos short (well under the 5-minute cap enforced in app.js)
 // and close other tabs. Not fixable from JS — no graceful recovery from a WebKit tab kill.
 window.extractFrames = async function extractFrames(file, opts = {}) {
-  const { intervalSec = 1.5, maxWidth = 960, onProgress = () => {} } = opts;
+  const { intervalSec = 0.5, maxWidth = 960, onProgress = () => {} } = opts;
   const log = window.SCSLogger.log;
 
   log(`extractFrames: loading ffmpeg core for file ${file.name} (${file.size} bytes)`);
