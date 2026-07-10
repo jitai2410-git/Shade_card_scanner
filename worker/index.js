@@ -1,6 +1,7 @@
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const MAX_IMAGES_PER_REQUEST = 60;
+const MAX_IMAGE_LENGTH = 2_000_000;
 const SHADE_REGEX = /^[1-9]\d{2}$/;
 
 export default {
@@ -28,9 +29,13 @@ async function handleDetectShades(request, env) {
   if (images.length > MAX_IMAGES_PER_REQUEST) {
     return jsonError(`Too many images: max ${MAX_IMAGES_PER_REQUEST} per request`, 400);
   }
-  for (const img of images) {
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
     if (typeof img !== 'string' || img.length === 0) {
       return jsonError('Each image must be a non-empty base64 string', 400);
+    }
+    if (img.length > MAX_IMAGE_LENGTH) {
+      return jsonError(`Image at index ${i} exceeds the maximum allowed size`, 400);
     }
   }
 
