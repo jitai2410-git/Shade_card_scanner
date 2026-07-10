@@ -133,3 +133,51 @@ valid JSON
 **Result:** PASS
 
 **Failures found:** none in the PWA code itself. One environment artifact (stray duplicate `http.server` processes from prior sessions) caused an initial false-negative on the manifest fetch check; root-caused and resolved as described above, not a defect in `manifest.json`/`sw.js`/`index.html`.
+
+## Phase 6 — Adversarial self-review
+
+**Environment note:** before starting, found one stray `python -m http.server 8080` (PID 1244) left running from a prior session, bound to port 8080. Killed it and started exactly one fresh server from the project root before any testing, per the process documented in Phase 5. A second stray pair of servers (PIDs 10188/19244) reappeared partway through this phase's testing (likely spawned by an unrelated tool/session in the same environment) — found via `netstat`/`Get-CimInstance Win32_Process`, both stopped, single server confirmed listening before the offline-reload check.
+
+| # | Check | Finding | Fix |
+|---|-------|---------|-----|
+| a | iOS Safari memory limits | Cannot test (no iOS device available); real risk for long videos | Documented as known limitation in `js/frameExtractor.js` (comment block above `extractFrames`) and `TESTING.md`'s "Known limitations" section; 5-min cap mitigates but does not eliminate the risk |
+| b | Photo instead of video selected | Confirmed working on first real test. Uploaded `icons/icon-192.png` via Playwright `browser_file_upload` to `#videoInput`. The `file.type.startsWith('video/')` check in `app.js` fired correctly: error banner appeared with text `Selected file is "image/png", not a video. Please pick a video file.` No blank screen, no crash, `downloadBtn` stayed hidden. | None needed — working as designed |
+| c | Zero shades detected | Confirmed working on first real test. Generated a 3s black synthetic video (`ffmpeg -f lavfi -i "color=c=black:s=640x480:d=3:r=30" ...`), uploaded via Playwright. Both extracted frames had OCR confidence 0 (correctly below the 70 threshold), 0 shades detected. Status text read exactly `No shade numbers were detected in this video. Try a clearer, closer, well-lit recording of the shade cards.` Verified in-browser via `browser_evaluate`: `downloadBtn.style.display` stayed `'none'` and `errorBanner.style.display` stayed `'none'` (soft "nothing found", not routed through the error path). Zero console errors. | None needed — working as designed |
+| d | Non-consecutive duplicate shade numbers | Working as spec'd (consecutive-only dedup, confirmed by reading `js/ocr.js`'s `lastNumber` tracking logic) | Documented policy below, no code change |
+| e | Pale/ivory low-contrast OCR | Generated a synthetic video: background `0xF5F5F0` (near-white), text "999" in `0xFFFFF0` (near-white, ~0.4% RGB difference from background) at 200pt. Ran through the real `extractFrames` → `detectShades` pipeline via Playwright. **Actual observed confidence: 95** (well above the 70 threshold) — Tesseract correctly recognized "999" and the frame was *not* skipped; PDF was generated with shade 999. This confirms the brief's anticipated scenario (ii): OCR confidence reflects glyph-shape/stroke certainty (a large, clean, well-formed synthetic glyph), not human-perceived color contrast — a flat-color synthetic test doesn't reproduce the JPEG compression noise, anti-aliasing, and lighting gradients of a real low-contrast phone photo that would actually degrade Tesseract's confidence. This is a real, documented limitation of confidence-based filtering, not a bug: it is *possible* for a genuinely hard-to-read-by-eye frame to still score high confidence, and vice versa. | Documented as a known limitation of confidence-based filtering below; no code change — forcing a fake low-confidence result to "pass" this check would misrepresent actual behavior |
+| f | CDN unreachable on first visit | Found gap: blocking `<script>` tags mean a CDN failure prevents `app.js` (and its error-banner logic) from ever running, leaving a blank page. Verified real: temporarily pointed the `ffmpeg.js` `<script src>` in `index.html` at a nonexistent URL, cleared the Service Worker/Cache Storage (to bypass the SW's cache-first serving of the previously-cached, working `index.html`), and reloaded — page went to a blank `<body>` with only the (still-registering) SW backdrop, no visible error at all, confirming the gap. | Added the global `window.addEventListener('error', ..., true)` script-error handler (brief's exact code) as the first `<script>` in `<head>`, before the CDN `<script>` tags. Re-tested with the same broken-URL setup: page now renders "Could not load required libraries" with the failed URL shown, instead of blank. Reverted the broken URL back to the real `ffmpeg.js` CDN URL afterward and re-verified normal load still works. |
+
+### Duplicate handling policy
+Only *consecutive*-frame duplicates are deduped (per spec). If shade 701 appears at
+frame 2 and again at frame 40 (non-consecutive), both are kept as separate entries in
+the output. Rationale: the spec explicitly scopes dedup to consecutive frames only,
+and collapsing all-time duplicates could silently drop a genuinely re-scanned or
+re-shot shade. If this is undesired in practice, the fix is a one-line change in
+js/ocr.js: track a `Set` of all seen numbers instead of just `lastNumber`.
+
+### OCR confidence-filtering limitation (check e)
+Tesseract's `data.confidence` score measures how certain the OCR engine is about
+the *shape* of the glyphs it found, not how visually distinguishable those glyphs
+are to a human eye. A large, clean, evenly-lit digit — even rendered in a color
+very close to its background — can still score a high confidence if its edges are
+crisp enough for the engine's internal classifier. Real-world low-contrast frames
+(e.g. pale ivory fabric under uneven lighting, motion blur, JPEG compression
+artifacts) are more likely to also have soft/blurry edges, which is what actually
+drives confidence down in practice — the confidence threshold is a reasonable
+proxy for "OCR trusts its own reading," not a guaranteed proxy for "a human would
+find this legible." No code change made; documented here as a known characteristic
+of confidence-based filtering.
+
+**_headers file:** Not created. No custom response headers are required — the app uses the single-thread ffmpeg.wasm core specifically to avoid needing COOP/COEP (per the Phase 0 decision), and no finding in this phase (including the check-f CDN fix, which is a client-side script-error handler, not a header concern) surfaced any need for cache-control or other header tuning.
+
+**Full regression re-run after fixes (Step 2):**
+
+| Task | Check | Result |
+|------|-------|--------|
+| 1 | Frame extraction (via full pipeline against `fixtures/test-video.mp4`) | PASS |
+| 2 | OCR shade detection + consecutive dedup (701/702/702-dup-skipped/703) | PASS |
+| 3 | PDF generation (1 page, labels `[701, 702, 703]`, 3 images) — verified via `tools/verify-phase3-pdf.js` against a freshly re-extracted `pdfResult.base64` | PASS |
+| 4 | Full pipeline UI (file select → progress text → swatch grid → download button), status text exactly `Done — 3 shades found: 701, 702, 703`, zero console errors | PASS |
+| 5 | PWA layer: SW registration confirmed (`getRegistration()` truthy), cache populated with 18 assets, page still rendered correctly after killing the dev server entirely (offline reload) and restarted server afterward | PASS |
+
+All five re-runs matched their original Task 1-5 DIAGNOSTICS.md results exactly (same shade numbers, same PDF byte size class, same asset count) — no regressions from the Step 1 fixes (the `index.html` script-error handler and the `js/frameExtractor.js` comment addition).

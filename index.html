@@ -8,6 +8,24 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css">
+<script>
+  // Global handler for CDN script-load failures. Library loads happen via
+  // blocking <script> tags below, before app.js runs — if unpkg.com is
+  // unreachable on a user's first (pre-cache) visit, those tags fail silently
+  // and app.js never executes, so the normal in-app error banner (which lives
+  // in JS that didn't load) can never show. This handler catches that case
+  // directly and replaces the page with a friendly explanation instead of a
+  // blank screen. Must be the first <script> in <head>, before the CDN tags.
+  window.addEventListener('error', function (e) {
+    if (e.target && e.target.tagName === 'SCRIPT') {
+      document.body.innerHTML = '<div style="padding:2rem;font-family:sans-serif;color:#c0272d">' +
+        '<h2>Could not load required libraries</h2>' +
+        '<p>This app needs an internet connection the first time you use it (to download OCR/PDF tools). ' +
+        'Please check your connection and reload. If this keeps happening, the issue may be with unpkg.com being unreachable from your network.</p>' +
+        '<p style="font-family:monospace;font-size:0.8rem">Failed: ' + (e.target.src || 'unknown script') + '</p></div>';
+    }
+  }, true);
+</script>
 </head>
 <body>
 <h1>Shade Card Scanner</h1>

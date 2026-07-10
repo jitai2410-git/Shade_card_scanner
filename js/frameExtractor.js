@@ -1,3 +1,8 @@
+// KNOWN LIMITATION: iOS Safari (all browsers on iOS use WebKit) has historically
+// killed WASM-heavy tabs around 300-400MB memory use. ffmpeg.wasm decoding long
+// or high-resolution videos can hit this. This app targets Android Chrome per spec;
+// iOS users should keep videos short (well under the 5-minute cap enforced in app.js)
+// and close other tabs. Not fixable from JS — no graceful recovery from a WebKit tab kill.
 window.extractFrames = async function extractFrames(file, opts = {}) {
   const { intervalSec = 1.5, maxWidth = 960, onProgress = () => {} } = opts;
   const log = window.SCSLogger.log;
