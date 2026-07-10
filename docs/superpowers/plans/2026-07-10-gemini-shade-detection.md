@@ -225,7 +225,7 @@ function jsonError(message, status) {
 
 From the repo root (so `.dev.vars` is picked up):
 ```bash
-npx --prefix tools wrangler dev --port 8788 --local
+npx --prefix tools wrangler dev --port 8788 --local --persist-to "C:/Users/Envy/AppData/Local/Temp/wrangler-local-state"
 ```
 In a separate terminal, extract a couple of real frames to test with (reuse the fixture video):
 ```bash
@@ -321,7 +321,7 @@ Expected: `12` (the 6-second fixture at 1 frame/0.5s = 12 frames; this is the CL
 
 Serve locally (from now on, use `wrangler dev`, not `python -m http.server`, since later tasks need the `/api/detect-shades` route too — but `test-phase1.html` only exercises `extractFrames`, which doesn't need the API, so either server works for this specific step; using `wrangler dev` now establishes the habit for later tasks):
 ```bash
-npx --prefix tools wrangler dev --port 8788 --local
+npx --prefix tools wrangler dev --port 8788 --local --persist-to "C:/Users/Envy/AppData/Local/Temp/wrangler-local-state"
 ```
 Navigate to `http://localhost:8788/test-phase1.html` via Playwright, upload `fixtures/test-video.mp4` (lowercase drive-letter path), wait for PASS/FAIL.
 Expected: `PASS — 12 frames extracted` (updated from the original `4 frames` at the old 1.5s interval), 12 thumbnails, zero console errors.
@@ -482,7 +482,7 @@ document.getElementById('fileInput').addEventListener('change', async (e) => {
 - [ ] **Step 3: Verify against the synthetic fixture via `wrangler dev` + Playwright**
 
 ```bash
-npx --prefix tools wrangler dev --port 8788 --local
+npx --prefix tools wrangler dev --port 8788 --local --persist-to "C:/Users/Envy/AppData/Local/Temp/wrangler-local-state"
 ```
 Navigate to `http://localhost:8788/test-phase2-gemini.html`, upload `fixtures/test-video.mp4`, wait for status text.
 Expected: `Done — detected [701, 702, 703]` (matching the original spec's synthetic-video expectation, now via Gemini instead of Tesseract).
@@ -605,7 +605,7 @@ No other changes to `app.js` — the `detectShades(frames)` call signature and t
 - [ ] **Step 5: Full end-to-end verification via `wrangler dev` + Playwright**
 
 ```bash
-npx --prefix tools wrangler dev --port 8788 --local
+npx --prefix tools wrangler dev --port 8788 --local --persist-to "C:/Users/Envy/AppData/Local/Temp/wrangler-local-state"
 ```
 Navigate to `http://localhost:8788/index.html`:
 1. Upload `fixtures/test-video.mp4` — expect `Done — 3 shades found: 701, 702, 703`, 3 swatch tiles, working download button, no error banner. Verify the downloaded PDF the same way as the original Task 4 (extract base64, decode, `node tools/verify-phase3-pdf.js`).
