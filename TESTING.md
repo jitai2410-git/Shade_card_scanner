@@ -1,14 +1,21 @@
 # Testing Shade Card Scanner on your phone
 
+## Update: internet requirement (2026-07-10)
+
+Shade detection now uses an AI service (Google Gemini) instead of running entirely on your phone, because real-world testing found the on-device approach couldn't read actual fabric labels reliably. This means:
+- You need an internet connection **every time you scan a video**, not just the first visit.
+- Frame extraction and PDF building still happen on your phone; only the "read the shade numbers" step goes over the internet.
+- If detection fails (no internet, or the service is temporarily down), you'll see the same red error banner as other failures — just retry once you have a connection.
+
 ## First-time setup
-1. Deploy this folder to Cloudflare Pages (or open the deployed URL if already live).
+1. Deploy this folder to Cloudflare Workers (or open the deployed URL if already live: https://shadecardscanner.jitai2410.workers.dev).
 2. On your Android phone, open the URL in **Chrome** (not another browser — this app is built and tested against Chrome).
-3. You need an internet connection the first time you visit, so the app can download its OCR/PDF tools (~15MB total). After that first visit, it works offline.
+3. You need an internet connection every time you use the app now (see note above) — the video-processing tools (~15MB) still cache after the first visit and work offline, but the shade-detection step itself always needs a connection.
 
 ## Basic test
 1. Film a short (under 1 minute) flip-through video of a few fabric shade cards, holding the phone steady and making sure the shade numbers are in focus and well-lit.
 2. Open the app, tap **Select Fabric Video**, choose your video.
-3. Watch the progress messages: "Extracting frames...", "OCR: frame X/Y...", "Building PDF...".
+3. Watch the progress messages: "Extracting frames...", "Analyzing N frames...", "Building PDF...".
 4. Confirm the shade swatches that appear on screen match what's in your video, with correct numbers underneath.
 5. Tap **Download PDF** and open it — confirm each shade has an image and a number, 2 per row.
 
