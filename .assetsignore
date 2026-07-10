@@ -14,3 +14,6 @@ wrangler.jsonc
 node_modules/
 DIAGNOSTICS.md
 TESTING.md
+test-phase2-gemini.html
+test-phase2.html
+test-phase3.html
