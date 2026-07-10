@@ -101,7 +101,9 @@ videoInput.addEventListener('change', async (e) => {
   pickBtn.disabled = true;
 
   try {
-    if (!file.type.startsWith('video/')) {
+    const hasVideoMimeType = file.type.startsWith('video/');
+    const hasVideoExtension = /\.(mp4|mov|webm|mkv|3gp|avi)$/i.test(file.name || '');
+    if (!hasVideoMimeType && !hasVideoExtension) {
       throw new Error(`Selected file is "${file.type || 'unknown type'}", not a video. Please pick a video file.`);
     }
 
