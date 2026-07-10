@@ -2,3 +2,7 @@ node_modules/
 *.log
 .playwright-mcp/
 fixtures/.tmp-video-build/
+.dev.vars
+.dev.vars.*
+*.env
+.env.*
